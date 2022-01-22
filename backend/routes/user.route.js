@@ -1,5 +1,5 @@
 const express = require( 'express' );
-const { register, login, followUser, logout, updatePassword, updateProfile } = require( '../controllers/user.controller' );
+const { register, login, followUser, logout, updatePassword, updateProfile, deleteMyProfile, myProfile, getUserProfile, getAllUsers } = require( '../controllers/user.controller' );
 const { isAuthenticated } = require( '../middlewares/auth' );
 
 
@@ -16,6 +16,14 @@ router.route( '/follow/:id' ).get( isAuthenticated, followUser );
 router.route( '/update/password' ).put( isAuthenticated, updatePassword );
 
 router.route( '/update/profile' ).put( isAuthenticated, updateProfile );
+
+router.route( '/delete/me' ).delete( isAuthenticated, deleteMyProfile );
+
+router.route( '/me' ).get( isAuthenticated, myProfile );
+
+router.route( '/user/:id' ).get( isAuthenticated, getUserProfile );
+
+router.route( '/users' ).get( isAuthenticated, getAllUsers );
 
 
 
