@@ -1,3 +1,4 @@
+const { json } = require( 'express/lib/response' );
 const Post = require( '../models/post.model' );
 const User = require( '../models/user.model' );
 exports.createPost = async ( req, res, next ) => {
@@ -74,7 +75,7 @@ exports.deletePost = async ( req, res ) => {
     }
 }
 
-exports.likeAndUnlikePost = async( req, res ) => {
+exports.likeAndUnlikePost = async ( req, res ) => {
     try {
 
         const post = await Post.findById( req.params.id );
@@ -105,10 +106,40 @@ exports.likeAndUnlikePost = async( req, res ) => {
             return res.status( 200 ).json( {
                 success: true,
                 message: " Post Liked..! "
-            })
+            } )
         }
         
        
+        
+    } catch ( error ) {
+        res.status( 500 ).json( {
+            success: false,
+            message: error.message
+        } )
+    }
+
+
+}
+
+
+exports.getPostOfFollowing = async ( req, res ) => {
+    
+    try {
+
+        const user = await User.findById( req.user._id );
+        user.following;
+
+        const posts = await Post.find( {
+            owner: {
+                $in: user.following
+            }
+        })
+
+         res.status( 200 ).json( {
+             success: true,
+             posts,
+            
+        })
         
     } catch (error) {
         res.status( 500 ).json( {
