@@ -343,7 +343,7 @@ exports.getAllUsers = async ( req, res ) => {
         res.status( 200 ).json( {
             sucess: true,
             users,
-        })
+        } );
 
         
     } catch (error) {
