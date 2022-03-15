@@ -1,5 +1,8 @@
 const Post = require( '../models/post.model' );
 const User = require( '../models/user.model' );
+const { sendEmail } = require( "../middlewares/sendEmail" );
+const crypto = require( 'crypto' );
+
 
 exports.register = async ( req, res ) => {
     try {
@@ -346,10 +349,104 @@ exports.getAllUsers = async ( req, res ) => {
         } );
 
         
-    } catch (error) {
+    } catch ( error ) {
         res.status( 500 ).json( {
             success: false,
             message: error.message
         } )
+    }
+};
+
+exports.forgotPassword = async ( req, res ) => {
+
+    try {
+
+        const user = await User.findOne( { email: req.body.email } );
+
+        if ( !user ) {
+            return res.status( 404 ).json( {
+                success: false,
+                message: "User not found..!!"
+            } );
+
+        }
+
+        const resetPasswordToken = user.getResetPasswordToken();
+
+        await user.save();
+
+        const resetUrl = `${ req.protocol }://${ req.get( 'host' ) }/api/v1/Password/reset/${ resetPasswordToken }`;
+        
+        const message = `You are receiving this email because you ( or someone else ) has requested the reset of a password. Please make a PUT request to: ${ resetUrl }`;
+
+        try {
+
+     
+            await sendEmail( {
+                email: user.email,
+                subject: "Password reset token",
+                message,
+            } );
+
+            res.status( 200 ).json( {
+                success: true,
+                message: `Email sent to ${ user.email }..!`,
+            } );
+
+        } catch ( error ) {
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpire = undefined;
+
+            await user.save();
+
+            res.status( 500 ).json( {
+                success: false,
+                message: error.message, // here i faced error..!!
+            } );
+        }
+
+
+    } catch ( error ) {
+        res.status( 500 ).json( {
+            success: false,
+            message: error.message
+        } )
+    }
+};
+
+exports.resetPassword = async ( req, res ) => {
+
+    try {
+
+        const resetPasswordToken = crypto.createHash( 'sha256' )
+            .update( req.params.token )
+            .digest( 'hex' );    
+        
+        const user = await User.findOne( {
+            resetPasswordToken,
+            resetPasswordExpire: { $gt: Date.now() },
+        } );
+
+        if ( !user ) {
+            return res.status( 401 ).json( {
+                success: false,
+                message: "Password reset token is invalid or has expired..!!"
+            } );
+        }
+
+        user.password = req.body.password;
+
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+
+        await user.save();
+
+        res.status( 200 ).json( {
+            success: true,
+            message: "Password reset successfully..!!"
+        } );
+
+    } catch ( error ) {
+
     }
 }
