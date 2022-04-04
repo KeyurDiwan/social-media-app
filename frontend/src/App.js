@@ -14,6 +14,7 @@ import UpdateProfile from './Components/UpdateProfile/UpdateProfile';
 import UpdatePassword from './Components/UpdatePassword/UpdatePassword';
 import ForgotPassword from './Components/ForgotPassword/ForgotPassword';
 import ResetPassword from './Components/ResetPassword/ResetPassword';
+import UserProfile from './Components/UserProfile/UserProfile';
 
 function App() {
 
@@ -68,7 +69,7 @@ function App() {
            element={isAuthenticated ? <UpdatePassword /> : <ForgotPassword />}
         />
       </Routes>
-      
+
       <Routes>
          <Route
           path="/password/reset/:token"
@@ -76,6 +77,14 @@ function App() {
         />
 
         
+      </Routes>
+
+      <Routes>
+        <Route
+          path="/user/:id"
+          element={isAuthenticated ? <UserProfile /> : <Login />}
+        />
+
       </Routes>
       
     
