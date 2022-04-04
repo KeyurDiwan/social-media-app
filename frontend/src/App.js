@@ -12,6 +12,8 @@ import NewPost from './Components/NewPost/NewPost';
 import Register from './Components/Register/Register';
 import UpdateProfile from './Components/UpdateProfile/UpdateProfile';
 import UpdatePassword from './Components/UpdatePassword/UpdatePassword';
+import ForgotPassword from './Components/ForgotPassword/ForgotPassword';
+import ResetPassword from './Components/ResetPassword/ResetPassword';
 
 function App() {
 
@@ -58,6 +60,22 @@ function App() {
           path="/update/password"
           element={isAuthenticated ? <UpdatePassword /> : <Login />}
         />
+      </Routes>
+
+         <Routes>
+          <Route
+          path="/forgot/password"
+           element={isAuthenticated ? <UpdatePassword /> : <ForgotPassword />}
+        />
+      </Routes>
+      
+      <Routes>
+         <Route
+          path="/password/reset/:token"
+          element={isAuthenticated ? <UpdatePassword /> : <ResetPassword />}
+        />
+
+        
       </Routes>
       
     
