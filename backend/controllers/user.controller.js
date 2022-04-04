@@ -2,28 +2,29 @@ const Post = require( '../models/post.model' );
 const User = require( '../models/user.model' );
 const { sendEmail } = require( "../middlewares/sendEmail" );
 const crypto = require( 'crypto' );
-
+const cloudinary = require("cloudinary");
 
 exports.register = async ( req, res ) => {
     try {
-        
-        const { name, email, password } = req.body;
+        const { name, email, password, avatar } = req.body;
 
         let user = await User.findOne( { email } );
         if ( user ) {
-            return res.status( 400 )
-                .json( {
-                    success: false, message: "user already exists"
-                } );
+            return res
+                .status( 400 )
+                .json( { success: false, message: "User already exists" } );
         }
 
-        user = await User.create( {
-            name, email, password, avatar: {
-                public_id: 'sample_id',
-                url: 'sample_url'
-            }
+        const myCloud = await cloudinary.v2.uploader.upload( avatar, {
+            folder: "avatars",
         } );
-        // res.status( 201 ).json( { success: true, user } );
+
+        user = await User.create( {
+            name,
+            email,
+            password,
+            avatar: { public_id: myCloud.public_id, url: myCloud.secure_url },
+        } );
 
         const token = await user.generateToken();
 
@@ -32,18 +33,16 @@ exports.register = async ( req, res ) => {
             httpOnly: true,
         };
 
-        res.status( 201 ).cookie( 'token', token, options)
-            .json( {
+        res.status( 201 ).cookie( "token", token, options ).json( {
             success: true,
             user,
             token,
         } );
-
     } catch ( error ) {
         res.status( 500 ).json( {
             success: false,
-            message: error.message
-        } )
+            message: error.message,
+        } );
     }
 };
 
@@ -202,10 +201,9 @@ exports.updatePassword = async ( req, res ) => {
 
 exports.updateProfile = async ( req, res ) => {
     try {
-
         const user = await User.findById( req.user._id );
 
-        const { name, email } = req.body;
+        const { name, email, avatar } = req.body;
 
         if ( name ) {
             user.name = name;
@@ -214,91 +212,121 @@ exports.updateProfile = async ( req, res ) => {
             user.email = email;
         }
 
-        // Useravatar TODO
+        if ( avatar ) {
+            await cloudinary.v2.uploader.destroy( user.avatar.public_id );
+
+            const myCloud = await cloudinary.v2.uploader.upload( avatar, {
+                folder: "avatars",
+            } );
+            user.avatar.public_id = myCloud.public_id;
+            user.avatar.url = myCloud.secure_url;
+        }
 
         await user.save();
 
         res.status( 200 ).json( {
             success: true,
-            message: "profile Updated..!"
-        } )
-         
+            message: "Profile Updated",
+        } );
     } catch ( error ) {
         res.status( 500 ).json( {
             success: false,
             message: error.message,
-        } )
+        } );
     }
-}
+};
+
 
 
 exports.deleteMyProfile = async ( req, res ) => {
     try {
-
         const user = await User.findById( req.user._id );
         const posts = user.posts;
-        const userId = user._id;
         const followers = user.followers;
         const following = user.following;
+        const userId = user._id;
+
+        // Removing Avatar from cloudinary
+        await cloudinary.v2.uploader.destroy( user.avatar.public_id );
 
         await user.remove();
 
-        // Logout User After deleting profile..!!
-        res.cookie( 'token', null, {
+        // Logout user after deleting profile
+
+        res.cookie( "token", null, {
             expires: new Date( Date.now() ),
-            httpOnly: true
+            httpOnly: true,
         } );
-         
 
-
-        // Delete all posts of the user..!!
+        // Delete all posts of the user
         for ( let i = 0; i < posts.length; i++ ) {
             const post = await Post.findById( posts[i] );
+            await cloudinary.v2.uploader.destroy( post.image.public_id );
             await post.remove();
         }
 
-        // Removing user from follower following
-        for (let i = 0; i < followers.length; i++) {
+        // Removing User from Followers Following
+        for ( let i = 0; i < followers.length; i++ ) {
             const follower = await User.findById( followers[i] );
 
             const index = follower.following.indexOf( userId );
-
             follower.following.splice( index, 1 );
             await follower.save();
-            
         }
 
-
-         // Removing user from  following's follower
-        for (let i = 0; i < following.length; i++) {
+        // Removing User from Following's Followers
+        for ( let i = 0; i < following.length; i++ ) {
             const follows = await User.findById( following[i] );
 
             const index = follows.followers.indexOf( userId );
-
             follows.followers.splice( index, 1 );
             await follows.save();
-            
         }
 
+        // removing all comments of the user from all posts
+        const allPosts = await Post.find();
 
+        for ( let i = 0; i < allPosts.length; i++ ) {
+            const post = await Post.findById( allPosts[i]._id );
+
+            for ( let j = 0; j < post.comments.length; j++ ) {
+                if ( post.comments[j].user === userId ) {
+                    post.comments.splice( j, 1 );
+                }
+            }
+            await post.save();
+        }
+        // removing all likes of the user from all posts
+
+        for ( let i = 0; i < allPosts.length; i++ ) {
+            const post = await Post.findById( allPosts[i]._id );
+
+            for ( let j = 0; j < post.likes.length; j++ ) {
+                if ( post.likes[j] === userId ) {
+                    post.likes.splice( j, 1 );
+                }
+            }
+            await post.save();
+        }
 
         res.status( 200 ).json( {
             success: true,
-            message: "Profile Deleted..!!"
-        } )
-        
+            message: "Profile Deleted",
+        } );
     } catch ( error ) {
-        res.send( 500 ).json( {
+        res.status( 500 ).json( {
             success: false,
             message: error.message,
-        } )
+        } );
     }
-}
+};
+
 
 exports.myProfile = async ( req, res ) => {
     try {
 
-        const user = await User.findById( req.user._id ).populate( "posts" );
+        const user = await User.findById( req.user._id ).populate(
+            "posts followers following" );
 
         res.status( 200 ).json( {
             success: true,
@@ -317,7 +345,8 @@ exports.myProfile = async ( req, res ) => {
 exports.getUserProfile = async ( req, res ) => {
     try {
 
-        const user = await User.findById( req.params.id ).populate( 'posts' );
+        const user = await User.findById( req.params.id ).populate(
+            'posts followers following' );
 
         if ( !user ) {
             return res.status( 404 ).json( {
@@ -420,7 +449,7 @@ exports.resetPassword = async ( req, res ) => {
 
         const resetPasswordToken = crypto.createHash( 'sha256' )
             .update( req.params.token )
-            .digest( 'hex' );    
+            .digest( 'hex' );
         
         const user = await User.findOne( {
             resetPasswordToken,
@@ -450,3 +479,33 @@ exports.resetPassword = async ( req, res ) => {
 
     }
 }
+
+
+exports.getMyPosts = async ( req, res ) => {
+    try {
+
+        const user = await User.findById( req.user._id );
+
+        const posts = [];
+
+
+        for ( let i = 0; i < user.posts.length; i++ ) {
+        
+            const post = await Post.findById( user.posts[i] ).populate(
+                'likes comments.user owner' )
+            posts.push( post );
+        }
+
+        res.status( 200 ).json( {
+            sucess: true,
+            posts,
+        } );
+
+        
+    } catch ( error ) {
+        res.status( 500 ).json( {
+            success: false,
+            message: error.message
+        } )
+    }
+};
